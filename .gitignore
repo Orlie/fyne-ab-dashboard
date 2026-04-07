@@ -34,9 +34,15 @@ yarn-error.log*
 .env*
 !.env.example
 
+# service account keys
+service-account-key.json
+sa-key.json
+
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel
