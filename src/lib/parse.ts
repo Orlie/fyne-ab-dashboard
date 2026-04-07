@@ -122,3 +122,97 @@ export function percentDiff(a: number, b: number): number {
   if (b === 0) return a > 0 ? 100 : 0;
   return ((a - b) / b) * 100;
 }
+
+// ── Serializers (object → sheet row) ──────────────────────────────────
+
+/** Format a decimal as percentage string: 0.08 → "8.0%" */
+export function formatPercent(value: number): string {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+/** Format a number as currency string: 740.24 → "$740.24" */
+export function formatCurrency(value: number): string {
+  return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** Format a number with commas: 16377 → "16,377" */
+export function formatNum(value: number): string {
+  return value.toLocaleString('en-US');
+}
+
+/** Serialize EukaTest back to sheet row format (26 columns, matching parseEukaRow column order) */
+export function serializeEukaRow(test: EukaTest): string[] {
+  const a = test.variantA;
+  const b = test.variantB;
+  return [
+    test.testId,
+    test.testName,
+    test.messageType,
+    test.status,
+    test.startDate,
+    test.endDate,
+    a.name,
+    a.agent,
+    formatNum(a.reached),
+    formatNum(a.requests),
+    formatNum(a.shipped),
+    formatPercent(a.requestRate),
+    formatNum(a.videos),
+    formatPercent(a.postRate),
+    formatCurrency(a.revenue),
+    b.name,
+    b.agent,
+    formatNum(b.reached),
+    formatNum(b.requests),
+    formatNum(b.shipped),
+    formatPercent(b.requestRate),
+    formatNum(b.videos),
+    formatPercent(b.postRate),
+    formatCurrency(b.revenue),
+    test.winner,
+    test.notes,
+  ];
+}
+
+/** Serialize EmailTest back to sheet row format (22 columns, matching parseEmailRow column order) */
+export function serializeEmailRow(test: EmailTest): string[] {
+  const a = test.variantA;
+  const b = test.variantB;
+  return [
+    test.testId,
+    test.testName,
+    test.testType,
+    test.status,
+    test.startDate,
+    test.endDate,
+    a.name,
+    formatNum(a.sent),
+    formatNum(a.opens),
+    formatPercent(a.openRate),
+    formatNum(a.clicks),
+    formatPercent(a.ctr),
+    formatNum(a.replies),
+    b.name,
+    formatNum(b.sent),
+    formatNum(b.opens),
+    formatPercent(b.openRate),
+    formatNum(b.clicks),
+    formatPercent(b.ctr),
+    formatNum(b.replies),
+    test.winner,
+    test.notes,
+  ];
+}
+
+/** Serialize Message back to sheet row format (7 columns, matching parseMessageRow column order) */
+export function serializeMessageRow(msg: Message): string[] {
+  return [
+    msg.messageId,
+    msg.funnelStage,
+    msg.channel,
+    msg.variantLabel,
+    msg.fullCopy,
+    msg.usedInTests,
+    msg.isCurrent ? 'TRUE' : 'FALSE',
+  ];
+}

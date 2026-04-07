@@ -1,8 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useFetch } from '@/lib/hooks';
+import { useFetch, useMutation } from '@/lib/hooks';
 import { Message } from '@/lib/types';
+import QuickEditModal from '@/components/QuickEditModal';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import Link from 'next/link';
 
 const STAGE_LABELS: Record<string, string> = {
   outreach: 'Initial Outreach',
@@ -19,10 +22,17 @@ const CHANNEL_LABELS: Record<string, string> = {
 };
 
 export default function MessagesPage() {
-  const { data: messages, loading, error } = useFetch<Message[]>('/api/messages');
+  const { data: messages, loading, error, refetch } = useFetch<Message[]>('/api/messages');
+  const { mutate: updateMessage } = useMutation<Message>('/api/messages', 'PUT');
+  const { mutate: deleteMessage } = useMutation<unknown>('/api/messages', 'DELETE');
   const [stageFilter, setStageFilter] = useState('all');
   const [channelFilter, setChannelFilter] = useState('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Quick Edit state
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  // Delete state
+  const [deletingMessage, setDeletingMessage] = useState<Message | null>(null);
 
   if (loading) return <div className="animate-pulse h-96 bg-gray-200 rounded-xl" />;
   if (error) return <p className="text-red-600">Error: {error}</p>;
@@ -42,11 +52,46 @@ export default function MessagesPage() {
     return acc;
   }, {});
 
+  async function handleQuickEditSave(updates: Record<string, string>) {
+    if (!editingMessage) return;
+    const updated: Message = {
+      ...editingMessage,
+      variantLabel: updates.variantLabel,
+      funnelStage: updates.funnelStage as Message['funnelStage'],
+      channel: updates.channel as Message['channel'],
+      isCurrent: updates.isCurrent === 'true',
+      usedInTests: updates.usedInTests,
+    };
+    try {
+      await updateMessage(updated);
+      refetch();
+    } catch {
+      // error handled by useMutation
+    }
+    setEditingMessage(null);
+  }
+
+  async function handleDeleteConfirm() {
+    if (!deletingMessage) return;
+    try {
+      await deleteMessage({ messageId: deletingMessage.messageId });
+      refetch();
+    } catch {
+      // error handled by useMutation
+    }
+    setDeletingMessage(null);
+  }
+
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Message Library</h1>
-        <p className="text-gray-500 text-sm mt-1">All message variants organized by funnel stage</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Message Library</h1>
+          <p className="text-gray-500 text-sm mt-1">All message variants organized by funnel stage</p>
+        </div>
+        <Link href="/messages/new" className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors">
+          + New Message
+        </Link>
       </div>
 
       {/* Filters */}
@@ -84,30 +129,45 @@ export default function MessagesPage() {
               {msgs.map((msg) => (
                 <div key={msg.messageId} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                   {/* Header - always visible */}
-                  <button
-                    onClick={() => setExpandedId(expandedId === msg.messageId ? null : msg.messageId)}
-                    className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors text-left"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  <div className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                    <button
+                      onClick={() => setExpandedId(expandedId === msg.messageId ? null : msg.messageId)}
+                      className="flex items-center gap-3 text-left flex-1 min-w-0"
+                    >
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${
                         msg.channel === 'euka' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
                       }`}>
                         {CHANNEL_LABELS[msg.channel]}
                       </span>
-                      <span className="text-sm font-medium text-gray-900">{msg.variantLabel}</span>
+                      <span className="text-sm font-medium text-gray-900 truncate">{msg.variantLabel}</span>
                       {msg.isCurrent && (
-                        <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Current</span>
+                        <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full shrink-0">Current</span>
                       )}
-                    </div>
-                    <div className="flex items-center gap-3">
+                    </button>
+                    <div className="flex items-center gap-3 shrink-0 ml-3">
                       {msg.usedInTests && (
                         <span className="text-xs text-gray-400">Used in: {msg.usedInTests}</span>
                       )}
-                      <span className="text-gray-400 text-sm">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditingMessage(msg); }}
+                        className="text-xs text-gray-400 hover:text-emerald-600 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeletingMessage(msg); }}
+                        className="text-xs text-gray-400 hover:text-red-600 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                      >
+                        Delete
+                      </button>
+                      <button
+                        onClick={() => setExpandedId(expandedId === msg.messageId ? null : msg.messageId)}
+                        className="text-gray-400 text-sm"
+                      >
                         {expandedId === msg.messageId ? '\u25B2' : '\u25BC'}
-                      </span>
+                      </button>
                     </div>
-                  </button>
+                  </div>
 
                   {/* Expanded body */}
                   {expandedId === msg.messageId && (
@@ -127,6 +187,73 @@ export default function MessagesPage() {
       {filtered.length === 0 && (
         <p className="text-gray-400 text-sm">No messages match your filters</p>
       )}
+
+      {/* Quick Edit Modal */}
+      <QuickEditModal
+        open={!!editingMessage}
+        onClose={() => setEditingMessage(null)}
+        onSave={handleQuickEditSave}
+        title={editingMessage ? `Edit: ${editingMessage.variantLabel}` : 'Edit Message'}
+        fields={[
+          {
+            key: 'variantLabel',
+            label: 'Variant Label',
+            type: 'text',
+            value: editingMessage?.variantLabel ?? '',
+          },
+          {
+            key: 'funnelStage',
+            label: 'Funnel Stage',
+            type: 'select',
+            value: editingMessage?.funnelStage ?? 'outreach',
+            options: [
+              { value: 'outreach', label: 'Initial Outreach' },
+              { value: 'spark_code', label: 'Spark Code Request' },
+              { value: 'creative_brief', label: 'Creative Brief' },
+              { value: 'welcome', label: 'Welcome / Shipping' },
+              { value: 'nudge', label: 'Content Nudge' },
+              { value: 'celebration', label: 'First Sale Celebration' },
+            ],
+          },
+          {
+            key: 'channel',
+            label: 'Channel',
+            type: 'select',
+            value: editingMessage?.channel ?? 'euka',
+            options: [
+              { value: 'euka', label: 'Euka Bot' },
+              { value: 'email', label: 'Email' },
+            ],
+          },
+          {
+            key: 'isCurrent',
+            label: 'Is Current',
+            type: 'select',
+            value: editingMessage?.isCurrent ? 'true' : 'false',
+            options: [
+              { value: 'true', label: 'TRUE' },
+              { value: 'false', label: 'FALSE' },
+            ],
+          },
+          {
+            key: 'usedInTests',
+            label: 'Used In Tests',
+            type: 'text',
+            value: editingMessage?.usedInTests ?? '',
+          },
+        ]}
+      />
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={!!deletingMessage}
+        title="Delete Message"
+        message={`Are you sure you want to delete "${deletingMessage?.variantLabel}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeletingMessage(null)}
+      />
     </div>
   );
 }
